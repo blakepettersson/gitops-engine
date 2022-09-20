@@ -949,9 +949,6 @@ func TestNamespaceAutoCreation(t *testing.T) {
 			Live:   []*unstructured.Unstructured{nil},
 			Target: []*unstructured.Unstructured{pod},
 		})
-		syncCtx.namespaceModifier = func(*unstructured.Unstructured) bool {
-			return false
-		}
 		tasks, successful := syncCtx.getSyncTasks()
 
 		assert.True(t, successful)
