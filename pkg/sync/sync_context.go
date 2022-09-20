@@ -798,6 +798,8 @@ func (sc *syncContext) autoCreateNamespace(tasks syncTasks) syncTasks {
 		}
 	}
 
+	sc.log.WithValues("isNamespaceCreationNeeded", isNamespaceCreationNeeded).Info("Namespace status")
+
 	if isNamespaceCreationNeeded {
 		nsSpec := &v1.Namespace{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: kube.NamespaceKind}, ObjectMeta: metav1.ObjectMeta{Name: sc.namespace}}
 		unstructuredObj, err := kube.ToUnstructured(nsSpec)
