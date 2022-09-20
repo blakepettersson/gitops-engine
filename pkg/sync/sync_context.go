@@ -153,12 +153,11 @@ func WithResourceModificationChecker(enabled bool, diffResults *diff.DiffResultL
 	}
 }
 
-// WithNamespaceCreation will create non-exist namespace
-func WithNamespaceCreation(createNamespace bool, namespaceModifier func(*unstructured.Unstructured) bool, namespaceCreator func(*unstructured.Unstructured) bool) SyncOpt {
+// WithNamespaceCreation will create a namespace, if it does not already exist
+func WithNamespaceCreation(createNamespace bool, namespaceModifier func(*unstructured.Unstructured) bool) SyncOpt {
 	return func(ctx *syncContext) {
 		ctx.createNamespace = createNamespace
 		ctx.namespaceModifier = namespaceModifier
-		ctx.namespaceCreator = namespaceCreator
 	}
 }
 
@@ -352,7 +351,6 @@ type syncContext struct {
 
 	createNamespace   bool
 	namespaceModifier func(*unstructured.Unstructured) bool
-	namespaceCreator  func(*unstructured.Unstructured) bool
 
 	syncWaveHook common.SyncWaveHook
 
@@ -813,12 +811,12 @@ func (sc *syncContext) autoCreateNamespace(tasks syncTasks) syncTasks {
 				} else {
 					sc.log.WithValues("namespace", sc.namespace).Info("Namespace already exists")
 					liveObjCopy := liveObj.DeepCopy()
-					if sc.namespaceModifier(liveObjCopy) {
+					if liveObj != nil && sc.namespaceModifier(liveObjCopy) {
 						tasks = append(tasks, &syncTask{phase: common.SyncPhasePreSync, targetObj: liveObjCopy, liveObj: liveObj})
 					}
 				}
 			} else if apierr.IsNotFound(err) {
-				if sc.namespaceCreator(unstructuredObj) {
+				if sc.namespaceModifier(unstructuredObj) {
 					tasks = append(tasks, &syncTask{phase: common.SyncPhasePreSync, targetObj: unstructuredObj, liveObj: nil})
 				}
 			} else {

@@ -949,9 +949,6 @@ func TestNamespaceAutoCreation(t *testing.T) {
 			Live:   []*unstructured.Unstructured{nil},
 			Target: []*unstructured.Unstructured{pod},
 		})
-		syncCtx.namespaceModifier = func(*unstructured.Unstructured) bool {
-			return false
-		}
 		tasks, successful := syncCtx.getSyncTasks()
 
 		assert.True(t, successful)
@@ -1006,7 +1003,7 @@ func TestNamespaceAutoCreationForNotExistNs(t *testing.T) {
 			Target: []*unstructured.Unstructured{pod},
 		})
 		creatorCalled := false
-		syncCtx.namespaceCreator = func(*unstructured.Unstructured) bool {
+		syncCtx.namespaceModifier = func(*unstructured.Unstructured) bool {
 			creatorCalled = true
 			return true
 		}
@@ -1023,7 +1020,7 @@ func TestNamespaceAutoCreationForNotExistNs(t *testing.T) {
 			Target: []*unstructured.Unstructured{pod},
 		})
 		creatorCalled := false
-		syncCtx.namespaceCreator = func(*unstructured.Unstructured) bool {
+		syncCtx.namespaceModifier = func(*unstructured.Unstructured) bool {
 			creatorCalled = true
 			return false
 		}
