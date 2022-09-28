@@ -153,10 +153,12 @@ func WithResourceModificationChecker(enabled bool, diffResults *diff.DiffResultL
 	}
 }
 
-// WithNamespaceCreation will create a namespace, if it does not already exist
-func WithNamespaceCreation(createNamespace bool, namespaceModifier func(*unstructured.Unstructured) bool) SyncOpt {
+// WithNamespaceModifier will create a namespace with the metadata passed in the `*unstructured.Unstructured` argument
+// of the `namespaceModifier` function, in the case it returns `true`. If the namespace already exists, the metadata
+// will overwrite what is already present if `namespaceModifier` returns `true`. If `namespaceModifier` returns `false`,
+// this will be a no-op.
+func WithNamespaceModifier(namespaceModifier func(*unstructured.Unstructured) bool) SyncOpt {
 	return func(ctx *syncContext) {
-		ctx.createNamespace = createNamespace
 		ctx.namespaceModifier = namespaceModifier
 	}
 }
@@ -349,7 +351,6 @@ type syncContext struct {
 	// lock to protect concurrent updates of the result list
 	lock sync.Mutex
 
-	createNamespace   bool
 	namespaceModifier func(*unstructured.Unstructured) bool
 
 	syncWaveHook common.SyncWaveHook
@@ -685,7 +686,7 @@ func (sc *syncContext) getSyncTasks() (_ syncTasks, successful bool) {
 		}
 	}
 
-	if sc.createNamespace && sc.namespace != "" {
+	if sc.namespaceModifier != nil && sc.namespace != "" {
 		tasks = sc.autoCreateNamespace(tasks)
 	}
 

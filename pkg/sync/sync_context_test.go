@@ -921,8 +921,10 @@ func TestNamespaceAutoCreation(t *testing.T) {
 	pod := NewPod()
 	namespace := NewNamespace()
 	syncCtx := newTestSyncCtx(nil)
-	syncCtx.createNamespace = true
 	syncCtx.namespace = FakeArgoCDNamespace
+	syncCtx.namespaceModifier = func(u *unstructured.Unstructured) bool {
+		return true
+	}
 	namespace.SetName(FakeArgoCDNamespace)
 
 	task, err := createNamespaceTask(syncCtx.namespace)
@@ -985,7 +987,7 @@ func TestNamespaceAutoCreation(t *testing.T) {
 
 }
 
-func TestNamespaceAutoCreationForNotExistNs(t *testing.T) {
+func TestNamespaceAutoCreationForNonExistingNs(t *testing.T) {
 	getResourceFunc := func(ctx context.Context, config *rest.Config, gvk schema.GroupVersionKind, name string, namespace string) (*unstructured.Unstructured, error) {
 		return nil, apierrors.NewNotFound(schema.GroupResource{}, FakeArgoCDNamespace)
 	}
@@ -993,7 +995,6 @@ func TestNamespaceAutoCreationForNotExistNs(t *testing.T) {
 	pod := NewPod()
 	namespace := NewNamespace()
 	syncCtx := newTestSyncCtx(&getResourceFunc)
-	syncCtx.createNamespace = true
 	syncCtx.namespace = FakeArgoCDNamespace
 	namespace.SetName(FakeArgoCDNamespace)
 
