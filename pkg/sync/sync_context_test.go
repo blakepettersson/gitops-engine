@@ -985,6 +985,33 @@ func TestNamespaceAutoCreation(t *testing.T) {
 		assert.Contains(t, tasks, task)
 	})
 
+	//Namespace auto creation pre-sync task not should be there
+	//since there is no namespace modifier present
+	t.Run("no pre-sync task created", func(t *testing.T) {
+		syncCtx.resources = groupResources(ReconciliationResult{
+			Live:   []*unstructured.Unstructured{nil},
+			Target: []*unstructured.Unstructured{pod},
+		})
+		syncCtx.namespaceModifier = nil
+
+		res := synccommon.ResourceSyncResult{
+			ResourceKey: kube.GetResourceKey(task.obj()),
+			Version:     task.version(),
+			Status:      task.syncStatus,
+			Message:     task.message,
+			HookType:    task.hookType(),
+			HookPhase:   task.operationState,
+			SyncPhase:   task.phase,
+		}
+		syncCtx.syncRes = map[string]synccommon.ResourceSyncResult{}
+		syncCtx.syncRes[task.resultKey()] = res
+
+		tasks, successful := syncCtx.getSyncTasks()
+
+		assert.True(t, successful)
+		assert.Len(t, tasks, 1)
+		assert.NotContains(t, tasks, task)
+	})
 }
 
 func TestNamespaceAutoCreationForNonExistingNs(t *testing.T) {
