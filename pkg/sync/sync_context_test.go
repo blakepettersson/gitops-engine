@@ -922,8 +922,8 @@ func TestNamespaceAutoCreation(t *testing.T) {
 	namespace := NewNamespace()
 	syncCtx := newTestSyncCtx(nil)
 	syncCtx.namespace = FakeArgoCDNamespace
-	syncCtx.namespaceModifier = func(u *unstructured.Unstructured) bool {
-		return true
+	syncCtx.namespaceModifier = func(u *unstructured.Unstructured) (bool, error) {
+		return true, nil
 	}
 	namespace.SetName(FakeArgoCDNamespace)
 
@@ -1031,9 +1031,9 @@ func TestNamespaceAutoCreationForNonExistingNs(t *testing.T) {
 			Target: []*unstructured.Unstructured{pod},
 		})
 		creatorCalled := false
-		syncCtx.namespaceModifier = func(*unstructured.Unstructured) bool {
+		syncCtx.namespaceModifier = func(*unstructured.Unstructured) (bool, error) {
 			creatorCalled = true
-			return true
+			return true, nil
 		}
 		tasks, successful := syncCtx.getSyncTasks()
 
@@ -1048,9 +1048,9 @@ func TestNamespaceAutoCreationForNonExistingNs(t *testing.T) {
 			Target: []*unstructured.Unstructured{pod},
 		})
 		creatorCalled := false
-		syncCtx.namespaceModifier = func(*unstructured.Unstructured) bool {
+		syncCtx.namespaceModifier = func(*unstructured.Unstructured) (bool, error) {
 			creatorCalled = true
-			return false
+			return false, nil
 		}
 		tasks, successful := syncCtx.getSyncTasks()
 
@@ -1059,6 +1059,32 @@ func TestNamespaceAutoCreationForNonExistingNs(t *testing.T) {
 		assert.Len(t, tasks, 1)
 	})
 
+	t.Run("pre-sync task error should be created if namespace creator has an error", func(t *testing.T) {
+		syncCtx.resources = groupResources(ReconciliationResult{
+			Live:   []*unstructured.Unstructured{nil},
+			Target: []*unstructured.Unstructured{pod},
+		})
+		creatorCalled := false
+		syncCtx.namespaceModifier = func(*unstructured.Unstructured) (bool, error) {
+			creatorCalled = true
+			return false, errors.New("some error")
+		}
+		tasks, successful := syncCtx.getSyncTasks()
+
+		assert.True(t, creatorCalled)
+		assert.True(t, successful)
+		assert.Len(t, tasks, 2)
+		assert.Equal(t, &syncTask{
+			phase:          synccommon.SyncPhasePreSync,
+			liveObj:        nil,
+			targetObj:      tasks[0].targetObj,
+			skipDryRun:     false,
+			syncStatus:     synccommon.ResultCodeSyncFailed,
+			operationState: synccommon.OperationError,
+			message:        "Namespace auto creation failed: some error",
+			waveOverride:   nil,
+		}, tasks[0])
+	})
 }
 
 func createNamespaceTask(namespace string) (*syncTask, error) {

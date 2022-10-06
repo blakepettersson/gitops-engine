@@ -157,7 +157,7 @@ func WithResourceModificationChecker(enabled bool, diffResults *diff.DiffResultL
 // of the `namespaceModifier` function, in the case it returns `true`. If the namespace already exists, the metadata
 // will overwrite what is already present if `namespaceModifier` returns `true`. If `namespaceModifier` returns `false`,
 // this will be a no-op.
-func WithNamespaceModifier(namespaceModifier func(*unstructured.Unstructured) bool) SyncOpt {
+func WithNamespaceModifier(namespaceModifier func(*unstructured.Unstructured) (bool, error)) SyncOpt {
 	return func(ctx *syncContext) {
 		ctx.namespaceModifier = namespaceModifier
 	}
@@ -351,7 +351,7 @@ type syncContext struct {
 	// lock to protect concurrent updates of the result list
 	lock sync.Mutex
 
-	namespaceModifier func(*unstructured.Unstructured) bool
+	namespaceModifier func(*unstructured.Unstructured) (bool, error)
 
 	syncWaveHook common.SyncWaveHook
 
@@ -811,13 +811,25 @@ func (sc *syncContext) autoCreateNamespace(tasks syncTasks) syncTasks {
 					tasks = append(tasks, nsTask)
 				} else {
 					sc.log.WithValues("namespace", sc.namespace).Info("Namespace already exists")
-					liveObjCopy := liveObj.DeepCopy()
-					if liveObj != nil && sc.namespaceModifier(liveObjCopy) {
-						tasks = append(tasks, &syncTask{phase: common.SyncPhasePreSync, targetObj: liveObjCopy, liveObj: liveObj})
+					if liveObj != nil {
+						liveObjCopy := liveObj.DeepCopy()
+						modified, err := sc.namespaceModifier(liveObjCopy)
+						if err != nil {
+							task := &syncTask{phase: common.SyncPhasePreSync, targetObj: unstructuredObj}
+							sc.setResourceResult(task, common.ResultCodeSyncFailed, common.OperationError, fmt.Sprintf("Namespace auto creation failed: %s", err))
+							tasks = append(tasks, task)
+						} else if modified {
+							tasks = append(tasks, &syncTask{phase: common.SyncPhasePreSync, targetObj: liveObjCopy, liveObj: liveObj})
+						}
 					}
 				}
 			} else if apierr.IsNotFound(err) {
-				if sc.namespaceModifier(unstructuredObj) {
+				modified, err := sc.namespaceModifier(unstructuredObj)
+				if err != nil {
+					task := &syncTask{phase: common.SyncPhasePreSync, targetObj: unstructuredObj}
+					sc.setResourceResult(task, common.ResultCodeSyncFailed, common.OperationError, fmt.Sprintf("Namespace auto creation failed: %s", err))
+					tasks = append(tasks, task)
+				} else if modified {
 					tasks = append(tasks, &syncTask{phase: common.SyncPhasePreSync, targetObj: unstructuredObj, liveObj: nil})
 				}
 			} else {
