@@ -812,14 +812,13 @@ func (sc *syncContext) autoCreateNamespace(tasks syncTasks) syncTasks {
 				} else {
 					sc.log.WithValues("namespace", sc.namespace).Info("Namespace already exists")
 					if liveObj != nil {
-						liveObjCopy := liveObj.DeepCopy()
-						modified, err := sc.namespaceModifier(liveObjCopy)
+						modified, err := sc.namespaceModifier(unstructuredObj)
 						if err != nil {
 							task := &syncTask{phase: common.SyncPhasePreSync, targetObj: unstructuredObj}
 							sc.setResourceResult(task, common.ResultCodeSyncFailed, common.OperationError, fmt.Sprintf("Namespace auto creation failed: %s", err))
 							tasks = append(tasks, task)
 						} else if modified {
-							tasks = append(tasks, &syncTask{phase: common.SyncPhasePreSync, targetObj: liveObjCopy, liveObj: liveObj})
+							tasks = append(tasks, &syncTask{phase: common.SyncPhasePreSync, targetObj: unstructuredObj, liveObj: liveObj})
 						}
 					}
 				}
