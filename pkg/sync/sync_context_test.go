@@ -1081,7 +1081,7 @@ func TestNamespaceAutoCreationForNonExistingNs(t *testing.T) {
 			skipDryRun:     false,
 			syncStatus:     synccommon.ResultCodeSyncFailed,
 			operationState: synccommon.OperationError,
-			message:        "Namespace auto creation failed: some error",
+			message:        "Namespace auto creation failed: error retrieving namespace from k8s: some error",
 			waveOverride:   nil,
 		}, tasks[0])
 	})

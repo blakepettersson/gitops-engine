@@ -808,38 +808,40 @@ func (sc *syncContext) autoCreateNamespace(tasks syncTasks) syncTasks {
 				nsTask := &syncTask{phase: common.SyncPhasePreSync, targetObj: unstructuredObj, liveObj: liveObj}
 				_, ok := sc.syncRes[nsTask.resultKey()]
 				if ok {
-					tasks = append(tasks, nsTask)
+					tasks = sc.appendNsTask(tasks, nsTask, unstructuredObj)
 				} else {
 					sc.log.WithValues("namespace", sc.namespace).Info("Namespace already exists")
 					if liveObj != nil {
-						modified, err := sc.namespaceModifier(unstructuredObj)
-						if err != nil {
-							task := &syncTask{phase: common.SyncPhasePreSync, targetObj: unstructuredObj}
-							sc.setResourceResult(task, common.ResultCodeSyncFailed, common.OperationError, fmt.Sprintf("Namespace auto creation failed: %s", err))
-							tasks = append(tasks, task)
-						} else if modified {
-							tasks = append(tasks, &syncTask{phase: common.SyncPhasePreSync, targetObj: unstructuredObj, liveObj: liveObj})
-						}
+						tasks = sc.appendNsTask(tasks, &syncTask{phase: common.SyncPhasePreSync, targetObj: unstructuredObj, liveObj: liveObj}, unstructuredObj)
 					}
 				}
 			} else if apierr.IsNotFound(err) {
-				modified, err := sc.namespaceModifier(unstructuredObj)
-				if err != nil {
-					task := &syncTask{phase: common.SyncPhasePreSync, targetObj: unstructuredObj}
-					sc.setResourceResult(task, common.ResultCodeSyncFailed, common.OperationError, fmt.Sprintf("Namespace auto creation failed: %s", err))
-					tasks = append(tasks, task)
-				} else if modified {
-					tasks = append(tasks, &syncTask{phase: common.SyncPhasePreSync, targetObj: unstructuredObj, liveObj: nil})
-				}
+				tasks = sc.appendNsTask(tasks, &syncTask{phase: common.SyncPhasePreSync, targetObj: unstructuredObj, liveObj: nil}, unstructuredObj)
 			} else {
-				task := &syncTask{phase: common.SyncPhasePreSync, targetObj: unstructuredObj}
-				sc.setResourceResult(task, common.ResultCodeSyncFailed, common.OperationError, fmt.Sprintf("Namespace auto creation failed: %s", err))
-				tasks = append(tasks, task)
+				tasks = sc.appendFailedNsTask(tasks, unstructuredObj, err)
 			}
 		} else {
 			sc.setOperationPhase(common.OperationFailed, fmt.Sprintf("Namespace auto creation failed: %s", err))
 		}
 	}
+	return tasks
+}
+
+func (sc *syncContext) appendNsTask(tasks syncTasks, preTask *syncTask, unstructuredObj *unstructured.Unstructured) syncTasks {
+	modified, err := sc.namespaceModifier(unstructuredObj)
+	if err != nil {
+		tasks = sc.appendFailedNsTask(tasks, unstructuredObj, err)
+	} else if modified {
+		tasks = append(tasks, preTask)
+	}
+
+	return tasks
+}
+
+func (sc *syncContext) appendFailedNsTask(tasks syncTasks, unstructuredObj *unstructured.Unstructured, err error) syncTasks {
+	task := &syncTask{phase: common.SyncPhasePreSync, targetObj: unstructuredObj}
+	sc.setResourceResult(task, common.ResultCodeSyncFailed, common.OperationError, fmt.Sprintf("Namespace auto creation failed: error retrieving namespace from k8s: %s", err))
+	tasks = append(tasks, task)
 	return tasks
 }
 
