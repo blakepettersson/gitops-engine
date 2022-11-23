@@ -692,6 +692,8 @@ func (sc *syncContext) getSyncTasks() (_ syncTasks, successful bool) {
 		tasks = sc.autoCreateNamespace(tasks)
 	}
 
+	sc.log.WithValues("TASKS WAAAAAAT ", tasks).V(1).Info("tasks from hooks")
+
 	// enrich task with live obj
 	for _, task := range tasks {
 		if task.targetObj == nil || task.liveObj != nil {
@@ -699,6 +701,8 @@ func (sc *syncContext) getSyncTasks() (_ syncTasks, successful bool) {
 		}
 		task.liveObj = sc.liveObj(task.targetObj)
 	}
+
+	sc.log.WithValues("TASKS WAAAAAAT v2 ", tasks).V(1).Info("tasks from hooks")
 
 	isRetryable := func(err error) bool {
 		return apierr.IsUnauthorized(err)
