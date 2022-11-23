@@ -636,7 +636,14 @@ func (sc *syncContext) getSyncTasks() (_ syncTasks, successful bool) {
 		}
 
 		for _, phase := range syncPhases(obj) {
-			resourceTasks = append(resourceTasks, &syncTask{phase: phase, targetObj: resource.Target, liveObj: resource.Live})
+			task := &syncTask{phase: phase, targetObj: resource.Target, liveObj: resource.Live}
+
+			if sc.syncNamespace != nil && sc.namespace != "" && task.isPrune() && task.targetObj.GetKind() == "Namespace" && task.targetObj.GetName() == sc.namespace {
+				sc.log.WithValues("NAMESPACE PRUNE TASK", task).V(1).Info("task to prune")
+				continue
+			}
+
+			resourceTasks = append(resourceTasks, task)
 		}
 	}
 
