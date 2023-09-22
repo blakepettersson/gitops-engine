@@ -14,10 +14,9 @@ import (
 )
 
 type MockResourceOps struct {
-	Commands                       map[string]KubectlOutput
-	ServerSideApplyManagerCommands map[kube.ResourceKey][]string
-	Events                         chan watch.Event
-	DynamicClient                  dynamic.Interface
+	Commands      map[string]KubectlOutput
+	Events        chan watch.Event
+	DynamicClient dynamic.Interface
 
 	lastCommandPerResource map[kube.ResourceKey]string
 	lastValidate           bool
@@ -74,24 +73,6 @@ func (r *MockResourceOps) SetLastServerSideApplyManager(manager string) {
 	r.recordLock.Unlock()
 }
 
-func (r *MockResourceOps) AddServerSideApplyManagerCommand(key kube.ResourceKey, manager string) {
-	r.recordLock.Lock()
-	if r.ServerSideApplyManagerCommands == nil {
-
-		r.ServerSideApplyManagerCommands = map[kube.ResourceKey][]string{}
-	}
-
-	strings := r.ServerSideApplyManagerCommands[key]
-
-	if strings == nil {
-		r.ServerSideApplyManagerCommands[key] = []string{manager}
-	} else {
-		r.ServerSideApplyManagerCommands[key] = append(r.ServerSideApplyManagerCommands[key], manager)
-	}
-
-	r.recordLock.Unlock()
-}
-
 func (r *MockResourceOps) SetLastResourceCommand(key kube.ResourceKey, cmd string) {
 	r.recordLock.Lock()
 	if r.lastCommandPerResource == nil {
@@ -115,7 +96,6 @@ func (r *MockResourceOps) ApplyResource(ctx context.Context, obj *unstructured.U
 	r.SetLastServerSideApply(serverSideApply)
 	r.SetLastServerSideApplyManager(manager)
 	r.SetLastResourceCommand(kube.GetResourceKey(obj), "apply")
-	r.AddServerSideApplyManagerCommand(kube.GetResourceKey(obj), manager)
 	command, ok := r.Commands[obj.GetName()]
 	if !ok {
 		return "", nil

@@ -397,7 +397,7 @@ func (sc *syncContext) Sync() {
 	} else {
 		// Perform a `kubectl apply --dry-run` against all the manifests. This will detect most (but
 		// not all) validation issues with the user's manifests (e.g. will detect syntax issues, but
-		// will not detect if they are mutating immutable fields). If anything fails, we will refuse
+		// will not not detect if they are mutating immutable fields). If anything fails, we will refuse
 		// to perform the sync. we only wish to do this once per operation, performing additional dry-runs
 		// is harmless, but redundant. The indicator we use to detect if we have already performed
 		// the dry-run for this operation, is if the resource or hook list is empty.
@@ -915,10 +915,8 @@ func (sc *syncContext) applyObject(t *syncTask, dryRun, force, validate bool) (c
 	serverSideApply := sc.serverSideApply || resourceutil.HasAnnotationOption(t.targetObj, common.AnnotationSyncOptions, common.SyncOptionServerSideApply)
 	if shouldReplace {
 		if t.liveObj != nil {
-			// Avoid using `kubectl replace` for CRDs since 'replace' might recreate resource and so delete all CRD instances.
-			// The same thing applies for namespaces, which would delete the namespace as well as everything within it,
-			// so we want to avoid using `kubectl replace` in that case as well.
-			if kube.IsCRD(t.targetObj) || t.targetObj.GetKind() == kubeutil.NamespaceKind {
+			// Avoid using `kubectl replace` for CRDs since 'replace' might recreate resource and so delete all CRD instances
+			if kube.IsCRD(t.targetObj) {
 				update := t.targetObj.DeepCopy()
 				update.SetResourceVersion(t.liveObj.GetResourceVersion())
 				_, err = sc.resourceOps.UpdateResource(context.TODO(), update, dryRunStrategy)
@@ -934,23 +932,6 @@ func (sc *syncContext) applyObject(t *syncTask, dryRun, force, validate bool) (c
 			message, err = sc.resourceOps.CreateResource(context.TODO(), t.targetObj, dryRunStrategy, validate)
 		}
 	} else {
-		targetObjIsSSA := resourceutil.HasAnnotationOption(t.targetObj, common.AnnotationSyncOptions, common.SyncOptionServerSideApply)
-		liveObjIsNotSSA := t.liveObj != nil && !resourceutil.HasAnnotationOption(t.liveObj, common.AnnotationSyncOptions, common.SyncOptionServerSideApply)
-		if t.targetObj.GetKind() == kube.NamespaceKind && t.liveObj != nil && t.liveObj.GetKind() == kube.NamespaceKind && targetObjIsSSA && liveObjIsNotSSA {
-			// If there is a pre-existing live namespace, and if we also want to use managedNamespaceMetadata on an existing namespace,
-			// we need to do `kubectl apply` with the namespace as-is, using a different manager than the default one.
-			// The reason we do this is so that we can preserve existing labels and annotations on the namespace.
-			nsSpec := &v1.Namespace{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: kube.NamespaceKind}, ObjectMeta: metav1.ObjectMeta{Name: t.liveObj.GetName(), Annotations: t.liveObj.GetAnnotations(), Labels: t.liveObj.GetLabels(), Namespace: t.liveObj.GetNamespace()}}
-			liveCopy, err := kube.ToUnstructured(nsSpec)
-			if err != nil {
-				return common.ResultCodeSyncFailed, "failed to convert namespace spec to unstructured: " + err.Error()
-			}
-
-			_, err = sc.resourceOps.ApplyResource(context.TODO(), liveCopy, dryRunStrategy, force, validate, serverSideApply, "argocd-controller-tmp")
-			if err != nil {
-				return common.ResultCodeSyncFailed, "failed to apply existing namespace with temp field manager: " + err.Error()
-			}
-		}
 		message, err = sc.resourceOps.ApplyResource(context.TODO(), t.targetObj, dryRunStrategy, force, validate, serverSideApply, sc.serverSideApplyManager)
 	}
 	if err != nil {
